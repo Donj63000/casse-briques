@@ -1532,16 +1532,13 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
+
     private void drawHud(Graphics2D g2) {
-        Color panelBackground = new Color(14, 24, 42, 190);
-        Color panelBorder = new Color(110, 190, 255, 180);
+        Color chipBackground = new Color(14, 24, 42, 170);
+        Color chipBorder = new Color(110, 190, 255, 150);
         Color textColor = new Color(225, 235, 255);
         Font labelFont = new Font("Roboto", Font.PLAIN, 14);
         Font valueFont = new Font("Roboto", Font.BOLD, 18);
-
-        int panelWidth = 260;
-        int padding = 14;
-        int rowHeight = 28;
 
         List<String> statusMessages = new ArrayList<>();
         List<Color> statusColors = new ArrayList<>();
@@ -1557,84 +1554,90 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             statusColors.add(new Color(200, 230, 255));
         }
 
-        int panelHeight = padding * 2 + rowHeight * 4;
-        if (!statusMessages.isEmpty()) {
-            panelHeight += 12 + statusMessages.size() * 18;
-        }
+        g2.setFont(labelFont);
+        int chipPaddingX = 12;
+        int chipPaddingY = 8;
+        int chipHeight = Math.max(g2.getFontMetrics().getHeight(), g2.getFontMetrics(valueFont).getHeight()) + chipPaddingY * 2;
 
-        int panelX = 14;
-        int panelY = Math.max(12, PANEL_HEIGHT - panelHeight - 16);
+        int chipY = 12;
+        int startX = 14;
 
-        g2.setColor(panelBackground);
-        g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 20, 20);
-        g2.setColor(panelBorder);
-        g2.setStroke(new BasicStroke(2f));
-        g2.drawRoundRect(panelX, panelY, panelWidth, panelHeight, 20, 20);
-
-        int contentX = panelX + padding;
-        int contentY = panelY + padding + 12;
-
-        drawHudRow(g2, contentX, contentY, panelWidth, padding, "Score", formatScore(score), new Color(86, 220, 250), labelFont, valueFont, textColor);
-        contentY += rowHeight;
-        drawHudRow(g2, contentX, contentY, panelWidth, padding, "Vies", String.valueOf(lives), new Color(255, 105, 97), labelFont, valueFont, textColor);
-        contentY += rowHeight;
-        drawHudRow(g2, contentX, contentY, panelWidth, padding, "Credits", String.valueOf(credits), new Color(255, 214, 102), labelFont, valueFont, textColor);
-        contentY += rowHeight;
-        drawHudRow(g2, contentX, contentY, panelWidth, padding, "Niveau", String.valueOf(Math.max(1, level)), new Color(153, 128, 255), labelFont, valueFont, textColor);
-        contentY += rowHeight;
+        startX += drawHudChip(g2, startX, chipY, chipPaddingX, chipPaddingY, chipHeight, "Score", formatScore(score), new Color(86, 220, 250), chipBackground, chipBorder, labelFont, valueFont, textColor) + 10;
+        startX += drawHudChip(g2, startX, chipY, chipPaddingX, chipPaddingY, chipHeight, "Vies", String.valueOf(lives), new Color(255, 105, 97), chipBackground, chipBorder, labelFont, valueFont, textColor) + 10;
+        startX += drawHudChip(g2, startX, chipY, chipPaddingX, chipPaddingY, chipHeight, "Credits", String.valueOf(credits), new Color(255, 214, 102), chipBackground, chipBorder, labelFont, valueFont, textColor) + 10;
+        drawHudChip(g2, startX, chipY, chipPaddingX, chipPaddingY, chipHeight, "Niveau", String.valueOf(Math.max(1, level)), new Color(153, 128, 255), chipBackground, chipBorder, labelFont, valueFont, textColor);
 
         if (!statusMessages.isEmpty()) {
-            g2.setFont(labelFont);
+            int statusY = chipY + chipHeight + 10;
             for (int i = 0; i < statusMessages.size(); i++) {
+                g2.setFont(labelFont);
                 g2.setColor(new Color(statusColors.get(i).getRed(), statusColors.get(i).getGreen(), statusColors.get(i).getBlue(), 220));
-                g2.drawString(statusMessages.get(i), contentX, contentY);
-                contentY += 18;
+                g2.drawString(statusMessages.get(i), 18, statusY);
+                statusY += 18;
             }
         }
 
-        drawBonusPanel(g2, panelBackground, panelBorder, labelFont, valueFont, textColor);
+        drawBonusPanel(g2, chipBackground, chipBorder, labelFont, valueFont, textColor, chipY);
     }
 
-    private void drawHudRow(Graphics2D g2, int x, int baselineY, int panelWidth, int padding, String label, String value, Color bulletColor, Font labelFont, Font valueFont, Color textColor) {
-        int bulletRadius = 6;
-        int bulletY = baselineY - bulletRadius - 4;
-        g2.setColor(new Color(bulletColor.getRed(), bulletColor.getGreen(), bulletColor.getBlue(), 230));
-        g2.fillOval(x, bulletY, bulletRadius * 2, bulletRadius * 2);
-
+    private int drawHudChip(Graphics2D g2, int x, int y, int paddingX, int paddingY, int height, String label, String value, Color bulletColor,
+                            Color background, Color border, Font labelFont, Font valueFont, Color textColor) {
         g2.setFont(labelFont);
+        int labelWidth = g2.getFontMetrics().stringWidth(label);
+        g2.setFont(valueFont);
+        int valueWidth = g2.getFontMetrics().stringWidth(value);
+
+        int bulletRadius = 5;
+        int bulletDiameter = bulletRadius * 2;
+        int width = paddingX * 2 + bulletDiameter + 6 + labelWidth + 14 + valueWidth;
+
+        g2.setColor(background);
+        g2.fillRoundRect(x, y, width, height, 18, 18);
+        g2.setColor(border);
+        g2.setStroke(new BasicStroke(1.8f));
+        g2.drawRoundRect(x, y, width, height, 18, 18);
+
+        int centerY = y + height / 2;
+
+        g2.setColor(new Color(bulletColor.getRed(), bulletColor.getGreen(), bulletColor.getBlue(), 230));
+        g2.fillOval(x + paddingX, centerY - bulletRadius, bulletDiameter, bulletDiameter);
+
+        int textStart = x + paddingX + bulletDiameter + 6;
+        g2.setFont(labelFont);
+        int labelBaseline = centerY + (g2.getFontMetrics().getAscent() - g2.getFontMetrics().getDescent()) / 2;
         g2.setColor(textColor);
-        int textX = x + bulletRadius * 2 + 8;
-        g2.drawString(label, textX, baselineY);
+        g2.drawString(label, textStart, labelBaseline);
 
         g2.setFont(valueFont);
-        int valueX = x + panelWidth - padding;
-        int valueWidth = g2.getFontMetrics().stringWidth(value);
-        g2.drawString(value, valueX - valueWidth, baselineY);
+        int valueBaseline = centerY + (g2.getFontMetrics().getAscent() - g2.getFontMetrics().getDescent()) / 2;
+        int valueX = x + width - paddingX - valueWidth;
+        g2.drawString(value, valueX, valueBaseline);
+
+        return width;
     }
 
-    private void drawBonusPanel(Graphics2D g2, Color panelBackground, Color panelBorder, Font labelFont, Font valueFont, Color textColor) {
-        int padding = 12;
-        int rowHeight = 24;
-        int panelWidth = 240;
+    private void drawBonusPanel(Graphics2D g2, Color panelBackground, Color panelBorder, Font labelFont, Font valueFont, Color textColor, int panelY) {
+        int padding = 10;
+        int rowHeight = 22;
+        int panelWidth = 230;
 
         int rows = Math.max(1, activeBonuses.size());
-        int panelHeight = padding * 2 + 20 + rows * rowHeight;
+        int panelHeight = padding * 2 + 18 + rows * rowHeight;
 
         int panelX = PANEL_WIDTH - panelWidth - 16;
-        int panelY = Math.max(12, PANEL_HEIGHT - panelHeight - 16);
 
         g2.setColor(new Color(panelBackground.getRed(), panelBackground.getGreen(), panelBackground.getBlue(), panelBackground.getAlpha()));
-        g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 18, 18);
+        g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 16, 16);
         g2.setColor(panelBorder);
-        g2.setStroke(new BasicStroke(1.8f));
-        g2.drawRoundRect(panelX, panelY, panelWidth, panelHeight, 18, 18);
+        g2.setStroke(new BasicStroke(1.6f));
+        g2.drawRoundRect(panelX, panelY, panelWidth, panelHeight, 16, 16);
 
-        g2.setFont(valueFont.deriveFont(Font.BOLD, 16f));
+        g2.setFont(valueFont.deriveFont(Font.BOLD, 15f));
         g2.setColor(textColor);
         int titleY = panelY + padding + 6;
         g2.drawString("Bonus actifs", panelX + padding, titleY);
 
-        int rowBaseline = titleY + 16;
+        int rowBaseline = titleY + 14;
         g2.setFont(labelFont);
         if (activeBonuses.isEmpty()) {
             g2.setColor(new Color(textColor.getRed(), textColor.getGreen(), textColor.getBlue(), 180));
@@ -1659,8 +1662,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             int valueWidth = g2.getFontMetrics().stringWidth(remaining);
             g2.drawString(remaining, valueX - valueWidth, rowBaseline);
 
-            g2.setFont(labelFont);
             rowBaseline += rowHeight;
+            g2.setFont(labelFont);
         }
     }
 
