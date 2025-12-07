@@ -1516,47 +1516,141 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     }
 
     private void drawHud(Graphics2D g2) {
-        g2.setColor(Color.WHITE);
-        g2.setStroke(new BasicStroke(2));
-        g2.drawRect(10, 10, PANEL_WIDTH - 20, PANEL_HEIGHT - 20);
+        Color panelBackground = new Color(14, 24, 42, 190);
+        Color panelBorder = new Color(110, 190, 255, 180);
+        Color textColor = new Color(225, 235, 255);
+        Font labelFont = new Font("Roboto", Font.PLAIN, 14);
+        Font valueFont = new Font("Roboto", Font.BOLD, 18);
 
-        g2.setFont(new Font("Roboto", Font.BOLD, 18));
-        String data = "Score: " + score + "   Vies: " + lives + "   Niveau: " + level + "   Credits: " + credits;
-        g2.drawString(data, 30, 40);
-        int infoY = 68;
+        int panelX = 14;
+        int panelY = 14;
+        int panelWidth = 260;
+        int padding = 14;
+        int rowHeight = 28;
+
+        List<String> statusMessages = new ArrayList<>();
+        List<Color> statusColors = new ArrayList<>();
         if (cheatMode) {
-            g2.setColor(new Color(255, 120, 0));
-            g2.setFont(new Font("Roboto", Font.BOLD, 20));
-            g2.drawString("Mode triche surchauffe !", 30, infoY);
-            infoY += 26;
+            statusMessages.add("Mode triche surchauffe !");
+            statusColors.add(new Color(255, 120, 0));
         } else if (isBonusActive(BonusType.PIERCE_BALL)) {
-            g2.setColor(new Color(255, 190, 60));
-            g2.setFont(new Font("Roboto", Font.BOLD, 18));
-            g2.drawString("Balle percante active", 30, infoY);
-            infoY += 24;
+            statusMessages.add("Balle percante active");
+            statusColors.add(new Color(255, 190, 60));
         }
-
         if (!shopMessage.isEmpty()) {
-            g2.setColor(new Color(200, 230, 255));
-            g2.setFont(new Font("Roboto", Font.PLAIN, 16));
-            g2.drawString(shopMessage, 30, infoY);
-            infoY += 22;
+            statusMessages.add(shopMessage);
+            statusColors.add(new Color(200, 230, 255));
         }
 
-        if (!activeBonuses.isEmpty()) {
-            g2.setFont(new Font("Roboto", Font.PLAIN, 14));
-            g2.setColor(new Color(220, 220, 255));
-            int bonusY = 40;
-            int x = PANEL_WIDTH - 240;
-            g2.drawString("Bonus actifs :", x, bonusY);
-            bonusY += 18;
-            for (ActiveBonus bonus : activeBonuses) {
-                int seconds = bonus.remainingSeconds();
-                String label = bonus.type.label + " (" + seconds + "s)";
-                g2.drawString(label, x, bonusY);
-                bonusY += 18;
+        int panelHeight = padding * 2 + rowHeight * 4;
+        if (!statusMessages.isEmpty()) {
+            panelHeight += 12 + statusMessages.size() * 18;
+        }
+
+        g2.setColor(panelBackground);
+        g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 20, 20);
+        g2.setColor(panelBorder);
+        g2.setStroke(new BasicStroke(2f));
+        g2.drawRoundRect(panelX, panelY, panelWidth, panelHeight, 20, 20);
+
+        int contentX = panelX + padding;
+        int contentY = panelY + padding + 12;
+
+        drawHudRow(g2, contentX, contentY, panelWidth, padding, "Score", formatScore(score), new Color(86, 220, 250), labelFont, valueFont, textColor);
+        contentY += rowHeight;
+        drawHudRow(g2, contentX, contentY, panelWidth, padding, "Vies", String.valueOf(lives), new Color(255, 105, 97), labelFont, valueFont, textColor);
+        contentY += rowHeight;
+        drawHudRow(g2, contentX, contentY, panelWidth, padding, "Credits", String.valueOf(credits), new Color(255, 214, 102), labelFont, valueFont, textColor);
+        contentY += rowHeight;
+        drawHudRow(g2, contentX, contentY, panelWidth, padding, "Niveau", String.valueOf(Math.max(1, level)), new Color(153, 128, 255), labelFont, valueFont, textColor);
+        contentY += rowHeight;
+
+        if (!statusMessages.isEmpty()) {
+            g2.setFont(labelFont);
+            for (int i = 0; i < statusMessages.size(); i++) {
+                g2.setColor(new Color(statusColors.get(i).getRed(), statusColors.get(i).getGreen(), statusColors.get(i).getBlue(), 220));
+                g2.drawString(statusMessages.get(i), contentX, contentY);
+                contentY += 18;
             }
         }
+
+        drawBonusPanel(g2, panelBackground, panelBorder, labelFont, valueFont, textColor);
+    }
+
+    private void drawHudRow(Graphics2D g2, int x, int baselineY, int panelWidth, int padding, String label, String value, Color bulletColor, Font labelFont, Font valueFont, Color textColor) {
+        int bulletRadius = 6;
+        int bulletY = baselineY - bulletRadius - 4;
+        g2.setColor(new Color(bulletColor.getRed(), bulletColor.getGreen(), bulletColor.getBlue(), 230));
+        g2.fillOval(x, bulletY, bulletRadius * 2, bulletRadius * 2);
+
+        g2.setFont(labelFont);
+        g2.setColor(textColor);
+        int textX = x + bulletRadius * 2 + 8;
+        g2.drawString(label, textX, baselineY);
+
+        g2.setFont(valueFont);
+        int valueX = x + panelWidth - padding;
+        int valueWidth = g2.getFontMetrics().stringWidth(value);
+        g2.drawString(value, valueX - valueWidth, baselineY);
+    }
+
+    private void drawBonusPanel(Graphics2D g2, Color panelBackground, Color panelBorder, Font labelFont, Font valueFont, Color textColor) {
+        int padding = 12;
+        int rowHeight = 24;
+        int panelWidth = 240;
+        int panelX = PANEL_WIDTH - panelWidth - 16;
+        int panelY = 16;
+
+        int rows = Math.max(1, activeBonuses.size());
+        int panelHeight = padding * 2 + 20 + rows * rowHeight;
+
+        g2.setColor(new Color(panelBackground.getRed(), panelBackground.getGreen(), panelBackground.getBlue(), panelBackground.getAlpha()));
+        g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 18, 18);
+        g2.setColor(panelBorder);
+        g2.setStroke(new BasicStroke(1.8f));
+        g2.drawRoundRect(panelX, panelY, panelWidth, panelHeight, 18, 18);
+
+        g2.setFont(valueFont.deriveFont(Font.BOLD, 16f));
+        g2.setColor(textColor);
+        int titleY = panelY + padding + 6;
+        g2.drawString("Bonus actifs", panelX + padding, titleY);
+
+        int rowBaseline = titleY + 16;
+        g2.setFont(labelFont);
+        if (activeBonuses.isEmpty()) {
+            g2.setColor(new Color(textColor.getRed(), textColor.getGreen(), textColor.getBlue(), 180));
+            g2.drawString("Aucun bonus en cours", panelX + padding, rowBaseline);
+            return;
+        }
+
+        for (ActiveBonus bonus : activeBonuses) {
+            Color bullet = colorForBonus(bonus.type);
+            int bulletRadius = 5;
+            int bulletY = rowBaseline - bulletRadius - 4;
+            g2.setColor(new Color(bullet.getRed(), bullet.getGreen(), bullet.getBlue(), 230));
+            g2.fillOval(panelX + padding, bulletY, bulletRadius * 2, bulletRadius * 2);
+
+            g2.setColor(textColor);
+            int textX = panelX + padding + bulletRadius * 2 + 8;
+            g2.drawString(bonus.type.label, textX, rowBaseline);
+
+            String remaining = bonus.remainingSeconds() + "s";
+            g2.setFont(valueFont);
+            int valueX = panelX + panelWidth - padding;
+            int valueWidth = g2.getFontMetrics().stringWidth(remaining);
+            g2.drawString(remaining, valueX - valueWidth, rowBaseline);
+
+            g2.setFont(labelFont);
+            rowBaseline += rowHeight;
+        }
+    }
+
+    private Color colorForBonus(BonusType type) {
+        return switch (type) {
+            case PADDLE_GROW -> new Color(88, 214, 141);
+            case PIERCE_BALL -> new Color(255, 196, 87);
+            case SCORE_BOOST -> new Color(134, 190, 255);
+        };
     }
 
     private void drawHelp(Graphics2D g2) {
