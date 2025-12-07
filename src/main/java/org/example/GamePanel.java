@@ -6,9 +6,9 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
-import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GradientPaint;
 import java.awt.RadialGradientPaint;
 import java.awt.RenderingHints;
 import java.awt.Stroke;
@@ -17,6 +17,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.geom.AffineTransform;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
@@ -927,7 +928,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             Rectangle2D.Double brickBounds = brick.getBounds();
             if (ballBounds.intersects(brickBounds)) {
                 if (piercingBall) {
-                    spawnExplosion(brickBounds);
+                    spawnExplosion(brickBounds, brick.getColor());
                     iterator.remove();
                     awardCredit();
                     addScore(100);
@@ -937,7 +938,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
                     resolveBallBrickCollision(brickBounds);
                     boolean destroyed = brick.applyHit();
                     if (destroyed) {
-                        spawnExplosion(brickBounds);
+                        spawnExplosion(brickBounds, brick.getColor());
                         iterator.remove();
                         awardCredit();
                         addScore(100);
@@ -956,8 +957,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
-    private void spawnExplosion(Rectangle2D.Double brickBounds) {
-        explosions.add(new Explosion(brickBounds));
+    private void spawnExplosion(Rectangle2D.Double brickBounds, Color color) {
+        explosions.add(new Explosion(brickBounds, color));
     }
 
     private void addScore(int basePoints) {
@@ -2224,20 +2225,36 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
     }
 
-    private static final class Explosion {
+    private final class Explosion {
         private final double centerX;
         private final double centerY;
         private final double baseSize;
+        private final Color baseColor;
+        private final List<Shard> shards;
         private int remainingLife = EXPLOSION_LIFETIME;
 
-        Explosion(Rectangle2D.Double bounds) {
+        Explosion(Rectangle2D.Double bounds, Color baseColor) {
             this.centerX = bounds.getCenterX();
             this.centerY = bounds.getCenterY();
             this.baseSize = Math.max(bounds.width, bounds.height);
+            this.baseColor = baseColor;
+            this.shards = createShards();
         }
 
         boolean update() {
             remainingLife--;
+            for (Iterator<Shard> iterator = shards.iterator(); iterator.hasNext();) {
+                Shard shard = iterator.next();
+                shard.x += shard.vx;
+                shard.y += shard.vy;
+                shard.vy += 0.22;
+                shard.vx *= 0.985;
+                shard.angle += shard.angularVelocity;
+                shard.life--;
+                if (shard.life <= 0) {
+                    iterator.remove();
+                }
+            }
             return remainingLife <= 0;
         }
 
@@ -2251,7 +2268,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             int alphaRing = (int) Math.max(0, 160 * (1.0 - progress));
 
             if (alphaCore > 0) {
-                g2.setColor(new Color(255, (int) Math.min(255, 150 + 80 * progress), 0, alphaCore));
+                Color core = adjustBrightness(baseColor, 1.15);
+                g2.setColor(new Color(core.getRed(), core.getGreen(), core.getBlue(), alphaCore));
                 g2.fillOval((int) Math.round(x), (int) Math.round(y), (int) Math.round(size), (int) Math.round(size));
             }
 
@@ -2261,14 +2279,75 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
                 double ringY = centerY - ringSize / 2.0;
                 Stroke previousStroke = g2.getStroke();
                 g2.setStroke(new BasicStroke(2f));
-                g2.setColor(new Color(255, 240, 200, alphaRing));
+                Color ring = adjustBrightness(baseColor, 1.3);
+                g2.setColor(new Color(ring.getRed(), ring.getGreen(), ring.getBlue(), alphaRing));
                 g2.drawOval((int) Math.round(ringX), (int) Math.round(ringY), (int) Math.round(ringSize), (int) Math.round(ringSize));
                 g2.setStroke(previousStroke);
             }
+
+            drawShards(g2);
         }
 
         private double progress() {
             return 1.0 - (double) remainingLife / EXPLOSION_LIFETIME;
+        }
+
+        private List<Shard> createShards() {
+            List<Shard> shards = new ArrayList<>();
+            int shardCount = 14 + random.nextInt(8);
+            for (int i = 0; i < shardCount; i++) {
+                double angle = random.nextDouble() * Math.PI * 2;
+                double speed = 2.0 + random.nextDouble() * 3.2;
+                double vx = Math.cos(angle) * speed;
+                double vy = Math.sin(angle) * speed * 0.8;
+                double size = 4 + random.nextDouble() * 6;
+                double angularVelocity = (random.nextDouble() - 0.5) * 0.3;
+                Color shardColor = adjustBrightness(baseColor, 0.85 + random.nextDouble() * 0.4);
+                shards.add(new Shard(centerX, centerY, vx, vy, size, angularVelocity, shardColor));
+            }
+            return shards;
+        }
+
+        private void drawShards(Graphics2D g2) {
+            AffineTransform originalTransform = g2.getTransform();
+            for (Shard shard : shards) {
+                double lifeRatio = shard.life / (double) shard.maxLife;
+                if (lifeRatio <= 0) {
+                    continue;
+                }
+                int alpha = (int) Math.round(220 * lifeRatio);
+                g2.setColor(new Color(shard.color.getRed(), shard.color.getGreen(), shard.color.getBlue(), alpha));
+                g2.translate(shard.x, shard.y);
+                g2.rotate(shard.angle);
+                g2.fillRoundRect((int) Math.round(-shard.size / 2.0), (int) Math.round(-shard.size / 4.0), (int) Math.round(shard.size), (int) Math.round(shard.size / 1.5), 2, 2);
+                g2.setTransform(originalTransform);
+            }
+        }
+
+        private final class Shard {
+            private double x;
+            private double y;
+            private double vx;
+            private double vy;
+            private double size;
+            private double angle;
+            private final double angularVelocity;
+            private int life;
+            private final int maxLife;
+            private final Color color;
+
+            Shard(double x, double y, double vx, double vy, double size, double angularVelocity, Color color) {
+                this.x = x;
+                this.y = y;
+                this.vx = vx;
+                this.vy = vy;
+                this.size = size;
+                this.angularVelocity = angularVelocity;
+                this.angle = random.nextDouble() * Math.PI * 2;
+                this.maxLife = EXPLOSION_LIFETIME + random.nextInt(10);
+                this.life = this.maxLife;
+                this.color = color;
+            }
         }
     }
 
