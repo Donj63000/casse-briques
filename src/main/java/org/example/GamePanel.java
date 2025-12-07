@@ -98,6 +98,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     private static final int SCORE_HISTORY_LIMIT = 5;
 
     private final Timer timer;
+    private final GameFrame hostFrame;
     private final Paddle paddle;
     private final Ball ball;
     private final List<Brick> bricks = new ArrayList<>();
@@ -132,7 +133,8 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
     private String shopMessage = "";
     private int shopMessageTimer;
 
-    GamePanel() {
+    GamePanel(GameFrame hostFrame) {
+        this.hostFrame = hostFrame;
         setPreferredSize(new Dimension(PANEL_WIDTH, PANEL_HEIGHT));
         setBackground(Color.BLACK);
         setFocusable(true);
@@ -1417,6 +1419,19 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         Graphics2D g2 = (Graphics2D) g.create();
         g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
+        double scaleX = getWidth() / (double) PANEL_WIDTH;
+        double scaleY = getHeight() / (double) PANEL_HEIGHT;
+        double scale = Math.min(scaleX, scaleY);
+        if (!Double.isFinite(scale) || scale <= 0) {
+            scale = 1.0;
+        }
+        double translateX = (getWidth() - PANEL_WIDTH * scale) / 2.0;
+        double translateY = (getHeight() - PANEL_HEIGHT * scale) / 2.0;
+
+        AffineTransform originalTransform = g2.getTransform();
+        g2.translate(translateX, translateY);
+        g2.scale(scale, scale);
+
         drawBackground(g2);
         drawBricks(g2);
         drawExplosions(g2);
@@ -1441,6 +1456,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             drawShopOverlay(g2);
         }
 
+        g2.setTransform(originalTransform);
         g2.dispose();
     }
 
@@ -1523,8 +1539,6 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         Font labelFont = new Font("Roboto", Font.PLAIN, 14);
         Font valueFont = new Font("Roboto", Font.BOLD, 18);
 
-        int panelX = 14;
-        int panelY = 14;
         int panelWidth = 260;
         int padding = 14;
         int rowHeight = 28;
@@ -1547,6 +1561,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         if (!statusMessages.isEmpty()) {
             panelHeight += 12 + statusMessages.size() * 18;
         }
+
+        int panelX = 14;
+        int panelY = Math.max(12, PANEL_HEIGHT - panelHeight - 16);
 
         g2.setColor(panelBackground);
         g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 20, 20);
@@ -1599,11 +1616,12 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         int padding = 12;
         int rowHeight = 24;
         int panelWidth = 240;
-        int panelX = PANEL_WIDTH - panelWidth - 16;
-        int panelY = 16;
 
         int rows = Math.max(1, activeBonuses.size());
         int panelHeight = padding * 2 + 20 + rows * rowHeight;
+
+        int panelX = PANEL_WIDTH - panelWidth - 16;
+        int panelY = Math.max(12, PANEL_HEIGHT - panelHeight - 16);
 
         g2.setColor(new Color(panelBackground.getRed(), panelBackground.getGreen(), panelBackground.getBlue(), panelBackground.getAlpha()));
         g2.fillRoundRect(panelX, panelY, panelWidth, panelHeight, 18, 18);
@@ -1880,6 +1898,7 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             case KeyEvent.VK_E -> toggleCheatMode();
             case KeyEvent.VK_R -> toggleAutoPilot();
             case KeyEvent.VK_B -> toggleShop();
+            case KeyEvent.VK_F, KeyEvent.VK_F11 -> toggleFullscreen();
             case KeyEvent.VK_1, KeyEvent.VK_NUMPAD1 -> { /* Ignored when boutique ferm??e */ }
             case KeyEvent.VK_2, KeyEvent.VK_NUMPAD2 -> { /* Ignored when boutique ferm??e */ }
             case KeyEvent.VK_3, KeyEvent.VK_NUMPAD3 -> { /* Ignored when boutique ferm??e */ }
@@ -1966,6 +1985,13 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         }
         shopOpen = !shopOpen;
         showShopMessage(shopOpen ? "Boutique ouverte" : "Boutique fermee");
+    }
+
+    private void toggleFullscreen() {
+        if (hostFrame != null) {
+            hostFrame.toggleFullscreen();
+            requestFocusInWindow();
+        }
     }
 
     private boolean handleShopInput(int keyCode) {
