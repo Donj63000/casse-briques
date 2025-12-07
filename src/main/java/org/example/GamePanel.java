@@ -2231,6 +2231,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
         private final double baseSize;
         private final Color baseColor;
         private final List<Shard> shards;
+        private final List<RadialParticle> radialParticles;
+        private final double ringRotation;
+        private final double ringStretch;
         private int remainingLife = EXPLOSION_LIFETIME;
 
         Explosion(Rectangle2D.Double bounds, Color baseColor) {
@@ -2239,6 +2242,9 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             this.baseSize = Math.max(bounds.width, bounds.height);
             this.baseColor = baseColor;
             this.shards = createShards();
+            this.radialParticles = createRadialParticles();
+            this.ringRotation = (random.nextDouble() - 0.5) * 0.35;
+            this.ringStretch = 1.0 + random.nextDouble() * 0.12;
         }
 
         boolean update() {
@@ -2260,12 +2266,13 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
 
         void draw(Graphics2D g2) {
             double progress = progress();
+            double lifeFade = 1.0 - progress;
             double size = baseSize * (1.2 + progress * 1.6);
             double x = centerX - size / 2.0;
             double y = centerY - size / 2.0;
 
-            int alphaCore = (int) Math.max(0, 210 * (1.0 - progress));
-            int alphaRing = (int) Math.max(0, 160 * (1.0 - progress));
+            int alphaCore = (int) Math.max(0, 210 * lifeFade);
+            int alphaRing = (int) Math.max(0, 160 * lifeFade);
 
             if (alphaCore > 0) {
                 Color core = adjustBrightness(baseColor, 1.15);
@@ -2275,17 +2282,21 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
 
             if (alphaRing > 0) {
                 double ringSize = size * (1.25 + 0.35 * progress);
-                double ringX = centerX - ringSize / 2.0;
-                double ringY = centerY - ringSize / 2.0;
                 Stroke previousStroke = g2.getStroke();
                 g2.setStroke(new BasicStroke(2f));
                 Color ring = adjustBrightness(baseColor, 1.3);
                 g2.setColor(new Color(ring.getRed(), ring.getGreen(), ring.getBlue(), alphaRing));
-                g2.drawOval((int) Math.round(ringX), (int) Math.round(ringY), (int) Math.round(ringSize), (int) Math.round(ringSize));
+                AffineTransform originalTransform = g2.getTransform();
+                g2.translate(centerX, centerY);
+                g2.rotate(ringRotation);
+                g2.scale(ringStretch, 2.0 - ringStretch);
+                g2.drawOval((int) Math.round(-ringSize / 2.0), (int) Math.round(-ringSize / 2.0), (int) Math.round(ringSize), (int) Math.round(ringSize));
+                g2.setTransform(originalTransform);
                 g2.setStroke(previousStroke);
             }
 
-            drawShards(g2);
+            drawRadialParticles(g2, progress, lifeFade);
+            drawShards(g2, lifeFade);
         }
 
         private double progress() {
@@ -2308,19 +2319,51 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
             return shards;
         }
 
-        private void drawShards(Graphics2D g2) {
+        private List<RadialParticle> createRadialParticles() {
+            List<RadialParticle> particles = new ArrayList<>();
+            int count = 8 + random.nextInt(6);
+            for (int i = 0; i < count; i++) {
+                double angle = random.nextDouble() * Math.PI * 2;
+                double distance = baseSize * (0.3 + random.nextDouble() * 0.6);
+                double size = 3 + random.nextDouble() * 6;
+                int alpha = 110 + random.nextInt(90);
+                Color tint = adjustBrightness(baseColor, 0.9 + random.nextDouble() * 0.45);
+                double stretch = 0.8 + random.nextDouble() * 0.7;
+                particles.add(new RadialParticle(angle, distance, size, alpha, tint, stretch));
+            }
+            return particles;
+        }
+
+        private void drawShards(Graphics2D g2, double lifeFade) {
             AffineTransform originalTransform = g2.getTransform();
             for (Shard shard : shards) {
                 double lifeRatio = shard.life / (double) shard.maxLife;
                 if (lifeRatio <= 0) {
                     continue;
                 }
-                int alpha = (int) Math.round(220 * lifeRatio);
+                int alpha = (int) Math.round(220 * lifeRatio * lifeFade);
                 g2.setColor(new Color(shard.color.getRed(), shard.color.getGreen(), shard.color.getBlue(), alpha));
                 g2.translate(shard.x, shard.y);
                 g2.rotate(shard.angle);
                 g2.fillRoundRect((int) Math.round(-shard.size / 2.0), (int) Math.round(-shard.size / 4.0), (int) Math.round(shard.size), (int) Math.round(shard.size / 1.5), 2, 2);
                 g2.setTransform(originalTransform);
+            }
+        }
+
+        private void drawRadialParticles(Graphics2D g2, double progress, double lifeFade) {
+            for (RadialParticle particle : radialParticles) {
+                int alpha = (int) Math.round(particle.baseAlpha * lifeFade * (0.75 + (1.0 - progress) * 0.25));
+                if (alpha <= 0) {
+                    continue;
+                }
+                double distance = particle.baseDistance * (0.8 + progress * 0.9);
+                double px = centerX + Math.cos(particle.angle) * distance;
+                double py = centerY + Math.sin(particle.angle) * distance;
+                double sparkleSizeX = particle.size * particle.stretch;
+                double sparkleSizeY = particle.size * (2.0 - particle.stretch);
+                Color color = particle.color;
+                g2.setColor(new Color(color.getRed(), color.getGreen(), color.getBlue(), alpha));
+                g2.fillOval((int) Math.round(px - sparkleSizeX / 2.0), (int) Math.round(py - sparkleSizeY / 2.0), (int) Math.round(sparkleSizeX), (int) Math.round(sparkleSizeY));
             }
         }
 
@@ -2347,6 +2390,24 @@ final class GamePanel extends JPanel implements ActionListener, KeyListener {
                 this.maxLife = EXPLOSION_LIFETIME + random.nextInt(10);
                 this.life = this.maxLife;
                 this.color = color;
+            }
+        }
+
+        private final class RadialParticle {
+            private final double angle;
+            private final double baseDistance;
+            private final double size;
+            private final int baseAlpha;
+            private final Color color;
+            private final double stretch;
+
+            RadialParticle(double angle, double baseDistance, double size, int baseAlpha, Color color, double stretch) {
+                this.angle = angle;
+                this.baseDistance = baseDistance;
+                this.size = size;
+                this.baseAlpha = baseAlpha;
+                this.color = color;
+                this.stretch = stretch;
             }
         }
     }
